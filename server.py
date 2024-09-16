@@ -46,63 +46,44 @@ def extract_qr_from_logo(img, size):
     return qr_img
 
 def decode_qr_code(image):
-    # Ensure image is in RGB format
     image = Image.fromarray(image)
-    image = image.convert('RGB')  # Convert to RGB if not already
+    image = image.convert('RGB')  
     
-    # Decode the QR code
     decoded_objects = pyzbar_decode(image)
     
     decoded_message = None
     for obj in decoded_objects:
         decoded_message = obj.data.decode('utf-8')
-        break  # Assuming there's only one QR code, exit after finding the first one
+        break  
     
     return decoded_message
 
 @app.route('/encode', methods=['POST'])
 def encode():
-    # Retrieve the message to be embedded in the QR code
     data = request.form['message']
     
-    # Read the uploaded image file (as in-memory binary)
     img_file = request.files['image'].read()
     
-    # Convert the image from binary to a NumPy array and then decode it as BGR using OpenCV
     img_array = np.frombuffer(img_file, np.uint8)
     img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
 
-    # Create the QR code and resize it to fit within the image
     qr_img = create_qr_code(data, min(img.shape[:2]))
-
-    # Embed the QR code using LSB steganography in the image
     img_with_qr = embed_qr_in_logo(img, qr_img)
-
-    # Save the image with the embedded QR code to an in-memory buffer
     _, buffer = cv2.imencode('.png', img_with_qr)
     io_buf = BytesIO(buffer)
-
-    # Send the image as a file response in PNG format
     return send_file(io_buf, mimetype='image/png', as_attachment=True, download_name='encoded_image.png')
 
 
 @app.route('/decode', methods=['POST'])
 def decode():
-    # Read the uploaded image file
     img_file = request.files['image'].read()
-    
-    # Use OpenCV to decode the in-memory image (BGR format)
     img_array = np.frombuffer(img_file, np.uint8)
     img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
-
-    # Extract the hidden QR code from the image
     qr_img = extract_qr_from_logo(img, min(img.shape[:2]))
-
-    # Decode the extracted QR code (you may need to adjust for BGR-to-RGB if required)
     decoded_message = decode_qr_code(qr_img)
 
     return jsonify({'message': decoded_message})
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000)
